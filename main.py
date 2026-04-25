@@ -1,12 +1,10 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from typing import Optional, List
 import pandas as pd
-import numpy as np
 import psycopg2
 import psycopg2.extras
 import os
-import time
 import logging
 from datetime import datetime
 from dotenv import load_dotenv
@@ -21,14 +19,15 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="Fraud Detection API",
     description="Real-time fraud detection with rule-based alerting and audit logging",
-    version="2.0.0"
+    version="2.0.0",
 )
 
 # ─── Load & compute baseline stats ───────────────────────────────────────────
 df = pd.read_csv("transactions.csv")
-mean_amount   = df["amount"].mean()
-std_amount    = df["amount"].std()
+mean_amount = df["amount"].mean()
+std_amount = df["amount"].std()
 mean_time_gap = df["time_gap_minutes"].mean()
+
 
 # ─── DB helpers ──────────────────────────────────────────────────────────────
 def get_db():
@@ -80,20 +79,20 @@ def create_audit_table(conn):
 
 # ─── Pydantic models ─────────────────────────────────────────────────────────
 class TransactionInput(BaseModel):
-    transaction_id:   Optional[str] = None
-    amount:           float
-    time_gap_minutes: Optional[float] = None   # minutes since last transaction
+    transaction_id: Optional[str] = None
+    amount: float
+    time_gap_minutes: Optional[float] = None  # minutes since last transaction
 
 
 class PredictionResponse(BaseModel):
-    transaction_id:  Optional[str]
-    amount:          float
-    z_score:         float
-    risk_score:      int          # 0-100 normalised score
-    status:          str          # NORMAL | SUSPICIOUS | HIGH_RISK
+    transaction_id: Optional[str]
+    amount: float
+    z_score: float
+    risk_score: int  # 0-100 normalised score
+    status: str  # NORMAL | SUSPICIOUS | HIGH_RISK
     alert_triggered: bool
-    alert_reason:    Optional[str]
-    recommendation:  str
+    alert_reason: Optional[str]
+    recommendation: str
 
 
 # ─── Rule-based alerting engine ──────────────────────────────────────────────
@@ -103,9 +102,9 @@ def compute_risk(amount: float, time_gap_minutes: Optional[float]) -> dict:
     Returns z_score, risk_score (0-100), status, alert flag, and reason.
     Reduces false positives by requiring multiple signals before escalating.
     """
-    z_score    = (amount - mean_amount) / std_amount
+    z_score = (amount - mean_amount) / std_amount
     risk_score = 0
-    reasons    = []
+    reasons = []
 
     # ── Rule 1: statistical outlier (z-score) ──────────────────────────────
     if abs(z_score) > 3.0:
@@ -147,21 +146,21 @@ def compute_risk(amount: float, time_gap_minutes: Optional[float]) -> dict:
 
     # Alert only when multiple independent rules fired (reduces false positives)
     alert_triggered = risk_score >= 60 or (risk_score >= 30 and len(reasons) >= 2)
-    alert_reason    = "; ".join(reasons) if reasons else None
+    alert_reason = "; ".join(reasons) if reasons else None
 
     recommendations = {
-        "HIGH_RISK":   "Block transaction and notify compliance team immediately.",
-        "SUSPICIOUS":  "Flag for manual review before processing.",
-        "NORMAL":      "Approve transaction.",
+        "HIGH_RISK": "Block transaction and notify compliance team immediately.",
+        "SUSPICIOUS": "Flag for manual review before processing.",
+        "NORMAL": "Approve transaction.",
     }
 
     return {
-        "z_score":         round(z_score, 4),
-        "risk_score":      risk_score,
-        "status":          status,
+        "z_score": round(z_score, 4),
+        "risk_score": risk_score,
+        "status": status,
         "alert_triggered": alert_triggered,
-        "alert_reason":    alert_reason,
-        "recommendation":  recommendations[status],
+        "alert_reason": alert_reason,
+        "recommendation": recommendations[status],
     }
 
 
@@ -171,7 +170,7 @@ def root():
     return {
         "service": "Fraud Detection API",
         "version": "2.0.0",
-        "status":  "running",
+        "status": "running",
     }
 
 
@@ -198,21 +197,24 @@ def predict(txn: TransactionInput):
         )
         create_audit_table(conn)
         with conn.cursor() as cur:
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO audit_logs
                     (transaction_id, amount, time_gap_minutes, z_score,
                      risk_score, status, alert_triggered, alert_reason)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """, (
-                txn.transaction_id,
-                txn.amount,
-                txn.time_gap_minutes,
-                result["z_score"],
-                result["risk_score"],
-                result["status"],
-                result["alert_triggered"],
-                result["alert_reason"],
-            ))
+            """,
+                (
+                    txn.transaction_id,
+                    txn.amount,
+                    txn.time_gap_minutes,
+                    result["z_score"],
+                    result["risk_score"],
+                    result["status"],
+                    result["alert_triggered"],
+                    result["alert_reason"],
+                ),
+            )
             conn.commit()
         conn.close()
         logger.info(f"Audit log written for transaction {txn.transaction_id}")
@@ -220,11 +222,10 @@ def predict(txn: TransactionInput):
         logger.warning(f"DB write skipped (DB may be offline): {e}")
 
     return PredictionResponse(
-        transaction_id  = txn.transaction_id,
-        amount          = txn.amount,
+        transaction_id=txn.transaction_id,
+        amount=txn.amount,
         **result,
     )
-
 
 
 # ─── Batch predict ────────────────────────────────────────────────────────────
@@ -244,26 +245,30 @@ def batch_predict(batch: BatchInput):
     results = []
     for txn in batch.transactions:
         risk = compute_risk(txn.amount, txn.time_gap_minutes)
-        results.append({
-            "transaction_id":  txn.transaction_id,
-            "amount":          txn.amount,
-            **risk,
-        })
+        results.append(
+            {
+                "transaction_id": txn.transaction_id,
+                "amount": txn.amount,
+                **risk,
+            }
+        )
 
-    high_risk_count  = sum(1 for r in results if r["status"] == "HIGH_RISK")
+    high_risk_count = sum(1 for r in results if r["status"] == "HIGH_RISK")
     suspicious_count = sum(1 for r in results if r["status"] == "SUSPICIOUS")
-    normal_count     = sum(1 for r in results if r["status"] == "NORMAL")
-    avg_risk         = round(sum(r["risk_score"] for r in results) / len(results), 2)
+    normal_count = sum(1 for r in results if r["status"] == "NORMAL")
+    avg_risk = round(sum(r["risk_score"] for r in results) / len(results), 2)
 
     return {
-        "count":   len(results),
+        "count": len(results),
         "results": results,
         "summary": {
-            "high_risk_count":  high_risk_count,
+            "high_risk_count": high_risk_count,
             "suspicious_count": suspicious_count,
-            "normal_count":     normal_count,
-            "avg_risk_score":   avg_risk,
-            "alert_rate_pct":   round((high_risk_count + suspicious_count) / len(results) * 100, 1),
+            "normal_count": normal_count,
+            "avg_risk_score": avg_risk,
+            "alert_rate_pct": round(
+                (high_risk_count + suspicious_count) / len(results) * 100, 1
+            ),
         },
     }
 
@@ -290,13 +295,13 @@ def get_audit_logs(status: Optional[str] = None, limit: int = 50):
                 cur.execute(
                     "SELECT * FROM audit_logs WHERE status = %s "
                     "ORDER BY created_at DESC LIMIT %s",
-                    (status.upper(), limit)
+                    (status.upper(), limit),
                 )
             else:
                 # Uses idx_audit_created_at index
                 cur.execute(
                     "SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT %s",
-                    (limit,)
+                    (limit,),
                 )
             rows = cur.fetchall()
         conn.close()

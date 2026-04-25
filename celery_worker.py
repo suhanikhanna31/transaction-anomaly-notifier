@@ -41,10 +41,10 @@ celery_app.conf.update(
     task_serializer="json",
     result_serializer="json",
     accept_content=["json"],
-    timezone="Asia/Kolkata",          # Pine Labs is based in India
+    timezone="Asia/Kolkata",  # Pine Labs is based in India
     task_routes={"celery_worker.*": {"queue": "alerts"}},
-    task_acks_late=True,              # re-queue if worker crashes mid-task
-    worker_prefetch_multiplier=1,     # one task at a time per worker process
+    task_acks_late=True,  # re-queue if worker crashes mid-task
+    worker_prefetch_multiplier=1,  # one task at a time per worker process
 )
 
 
@@ -59,7 +59,7 @@ def _send_email(subject: str, body: str) -> bool:
     smtp_port = int(os.getenv("SMTP_PORT", 587))
     smtp_user = os.getenv("SMTP_USER")
     smtp_pass = os.getenv("SMTP_PASS")
-    to_addr   = os.getenv("ALERT_EMAIL_TO")
+    to_addr = os.getenv("ALERT_EMAIL_TO")
 
     if not all([smtp_host, smtp_user, smtp_pass, to_addr]):
         logger.warning("Email not configured — skipping email alert.")
@@ -67,8 +67,8 @@ def _send_email(subject: str, body: str) -> bool:
 
     msg = MIMEText(body, "plain")
     msg["Subject"] = subject
-    msg["From"]    = smtp_user
-    msg["To"]      = to_addr
+    msg["From"] = smtp_user
+    msg["To"] = to_addr
 
     try:
         with smtplib.SMTP(smtp_host, smtp_port) as server:
@@ -108,10 +108,16 @@ def _send_slack(message: str) -> bool:
     name="celery_worker.dispatch_alert",
     bind=True,
     max_retries=3,
-    default_retry_delay=10,   # seconds between retries
+    default_retry_delay=10,  # seconds between retries
 )
-def dispatch_alert(self, transaction_id: str, amount: float, status: str,
-                   risk_score: int, alert_reason: str):
+def dispatch_alert(
+    self,
+    transaction_id: str,
+    amount: float,
+    status: str,
+    risk_score: int,
+    alert_reason: str,
+):
     """
     Async task: send email + Slack notification for flagged transactions.
     Retried up to 3 times with exponential back-off if network errors occur.
@@ -137,6 +143,6 @@ def dispatch_alert(self, transaction_id: str, amount: float, status: str,
         _send_slack(slack_msg)
     except Exception as exc:
         logger.error(f"Alert dispatch failed, retrying: {exc}")
-        raise self.retry(exc=exc, countdown=2 ** self.request.retries)
+        raise self.retry(exc=exc, countdown=2**self.request.retries)
 
     return {"sent": True, "transaction_id": transaction_id}

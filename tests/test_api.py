@@ -14,12 +14,13 @@ Coverage targets:
     - Batch endpoint
 """
 
-import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 
 # ── Import app with DB patched out so tests don't need Postgres ───────────────
-import sys, os
+import sys
+import os
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 with patch("psycopg2.connect") as mock_conn:
@@ -33,6 +34,7 @@ client = TestClient(app)
 # Helpers
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def predict(amount, time_gap_minutes=None, transaction_id=None):
     payload = {"amount": amount}
     if time_gap_minutes is not None:
@@ -45,6 +47,7 @@ def predict(amount, time_gap_minutes=None, transaction_id=None):
 # ═══════════════════════════════════════════════════════════════════════════════
 # Health / root
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestHealthEndpoints:
     def test_root_returns_200(self):
@@ -66,6 +69,7 @@ class TestHealthEndpoints:
 # Rule engine unit tests (pure logic, no HTTP)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestRuleEngine:
     def test_normal_transaction_low_risk(self):
         result = compute_risk(200, time_gap_minutes=15)
@@ -75,7 +79,7 @@ class TestRuleEngine:
 
     def test_high_amount_over_10k_adds_25(self):
         result_10k = compute_risk(12000, time_gap_minutes=30)
-        result_5k  = compute_risk(6000, time_gap_minutes=30)
+        result_5k = compute_risk(6000, time_gap_minutes=30)
         # $12k should carry more risk than $6k
         assert result_10k["risk_score"] > result_5k["risk_score"]
 
@@ -95,7 +99,11 @@ class TestRuleEngine:
         result = compute_risk(600, time_gap_minutes=20)
         # risk_score should be moderate but not enough for alert alone
         if result["risk_score"] < 60:
-            assert result["alert_triggered"] is (result["risk_score"] >= 30 and result["alert_reason"] is not None and ";" in result["alert_reason"])
+            assert result["alert_triggered"] is (
+                result["risk_score"] >= 30
+                and result["alert_reason"] is not None
+                and ";" in result["alert_reason"]
+            )
 
     def test_risk_score_capped_at_100(self):
         # Extreme transaction that would overflow without cap
@@ -118,18 +126,22 @@ class TestRuleEngine:
             assert len(result["alert_reason"]) > 0
 
     def test_recommendation_matches_status(self):
-        normal    = compute_risk(200, 15)
+        normal = compute_risk(200, 15)
         suspicious = compute_risk(6000, 20)
-        high_risk  = compute_risk(15000, 0.2)
+        high_risk = compute_risk(15000, 0.2)
 
         assert "Approve" in normal["recommendation"]
-        assert "review" in suspicious["recommendation"].lower() or "Approve" in suspicious["recommendation"]
+        assert (
+            "review" in suspicious["recommendation"].lower()
+            or "Approve" in suspicious["recommendation"]
+        )
         assert "Block" in high_risk["recommendation"]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # /predict endpoint
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestPredictEndpoint:
     def test_predict_normal_transaction(self):
@@ -161,15 +173,20 @@ class TestPredictEndpoint:
         r = predict(500, time_gap_minutes=10)
         assert r.status_code == 200
         body = r.json()
-        assert "transaction_id" in body   # field exists, may be None
+        assert "transaction_id" in body  # field exists, may be None
 
     def test_predict_response_has_all_fields(self):
         r = predict(1000, time_gap_minutes=5, transaction_id="txn_fields")
         body = r.json()
         expected_keys = {
-            "transaction_id", "amount", "z_score",
-            "risk_score", "status", "alert_triggered",
-            "alert_reason", "recommendation"
+            "transaction_id",
+            "amount",
+            "z_score",
+            "risk_score",
+            "status",
+            "alert_triggered",
+            "alert_reason",
+            "recommendation",
         }
         assert expected_keys.issubset(body.keys())
 
@@ -189,6 +206,7 @@ class TestPredictEndpoint:
 # ═══════════════════════════════════════════════════════════════════════════════
 # /batch-predict endpoint
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestBatchPredict:
     def test_batch_predict_multiple_transactions(self):
@@ -237,12 +255,13 @@ class TestBatchPredict:
     def test_batch_max_100_transactions(self):
         transactions = [{"amount": 200} for _ in range(101)]
         r = client.post("/batch-predict", json={"transactions": transactions})
-        assert r.status_code == 422   # validation error
+        assert r.status_code == 422  # validation error
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # DB resilience
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestDBResilience:
     @patch("psycopg2.connect", side_effect=Exception("DB is down"))
