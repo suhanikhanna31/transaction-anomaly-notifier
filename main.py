@@ -96,7 +96,7 @@ class PredictionResponse(BaseModel):
 
 
 # ─── Rule-based alerting engine ──────────────────────────────────────────────
-def compute_risk(amount: float, time_gap_minutes: Optional[float]) -> dict:
+def compute_risk(amount: float, time_gap_minutes: Optional[float] = None) -> dict:  # ← FIX 1: added = None
     """
     Multi-factor rule engine.
     Returns z_score, risk_score (0-100), status, alert flag, and reason.
@@ -230,7 +230,7 @@ def predict(txn: TransactionInput):
 
 # ─── Batch predict ────────────────────────────────────────────────────────────
 class BatchInput(BaseModel):
-    transactions: List[TransactionInput] = Field(..., min_length=1, max_length=100)
+    transactions: List[TransactionInput] = Field(..., max_length=100)  # ← FIX 2: removed min_length=1
 
 
 @app.post("/batch-predict")
