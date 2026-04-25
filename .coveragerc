@@ -1,0 +1,4 @@
+[run]
+omit =
+    celery_worker.py
+    lambda_handler.py
