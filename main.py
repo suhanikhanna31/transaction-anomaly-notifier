@@ -7,9 +7,9 @@ import psycopg2.extras
 import os
 import logging
 from datetime import datetime
-from dotenv import load_dotenv
 
-load_dotenv()
+
+
 
 # ─── Logging ────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO)
