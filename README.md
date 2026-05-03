@@ -4,6 +4,71 @@
 
 ---
 
+## 🔴 Live Demo
+
+| What | Link |
+|------|------|
+| **Swagger UI** (try endpoints live) | [/docs](https://transaction-anomaly-notifier.onrender.com/docs) |
+| **Health check** | [/health](https://transaction-anomaly-notifier.onrender.com/health) |
+| **API base** | https://transaction-anomaly-notifier.onrender.com |
+
+> ⚠️ Hosted on Render free tier — first request may take ~30 seconds to wake up. Subsequent requests are fast.
+
+---
+
+## Quick test (copy-paste into your terminal)
+
+**Test a HIGH_RISK transaction:**
+```bash
+curl -X POST https://transaction-anomaly-notifier.onrender.com/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "transaction_id": "txn_001",
+    "amount": 14500,
+    "time_gap_minutes": 0.3,
+    "location": "International",
+    "device": "new_device"
+  }'
+```
+
+**Expected response:**
+```json
+{
+  "transaction_id": "txn_001",
+  "amount": 14500,
+  "location": "International",
+  "device": "new_device",
+  "z_score": 2.98,
+  "risk_score": 85,
+  "confidence": 0.88,
+  "status": "HIGH_RISK",
+  "alert_triggered": true,
+  "alert_reason": "high z-score (2.98); amount exceeds ₹10,000; rapid succession (0.3 min gap); international transaction flagged; new or unrecognized device",
+  "recommendation": "Block transaction and notify compliance team immediately."
+}
+```
+
+**Test a NORMAL transaction:**
+```bash
+curl -X POST https://transaction-anomaly-notifier.onrender.com/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "transaction_id": "txn_002",
+    "amount": 450,
+    "time_gap_minutes": 120,
+    "location": "Delhi",
+    "device": "mobile"
+  }'
+```
+
+---
+
+## Postman Collection
+
+Download and import [`postman_collection.json`](./postman_collection.json) into Postman to run all 7 sample requests instantly — no setup required.
+
+---
+
 ## What This Does
 
 Payment networks process millions of transactions per minute. A single undetected fraud event costs on average ₹40,000+. This system scores each transaction in **< 10 ms** using a multi-rule engine, persists audit logs to PostgreSQL, and dispatches async email + Slack alerts via Celery — without blocking the HTTP response.
@@ -13,7 +78,7 @@ Payment networks process millions of transactions per minute. A single undetecte
 ## Tech Stack
 
 | Layer | Technology |
-|---|---|
+|-------|------------|
 | API | FastAPI + Uvicorn |
 | Scoring Engine | NumPy / Pandas (z-score + rule-based) |
 | Async Alerts | Celery + Redis |
@@ -37,6 +102,7 @@ transaction-anomaly-notifier/
 ├── Dockerfile                 ← Docker build
 ├── docker-compose.yml         ← API + Celery worker + Postgres + Redis
 ├── .env.example               ← Environment variable template
+├── postman_collection.json    ← 7 ready-to-run API requests
 ├── tests/
 │   └── test_api.py            ← 25 pytest tests — unit + integration + resilience
 └── .github/
@@ -57,6 +123,8 @@ docker compose up --build
 
 All four services start: API on `:8000`, PostgreSQL on `:5432`, Redis on `:6379`, Celery worker.
 
+Open **http://localhost:8000/docs** for Swagger UI.
+
 ### Option B — Python only
 
 ```bash
@@ -72,42 +140,71 @@ Open **http://localhost:8000/docs** for Swagger UI.
 
 ### `POST /predict`
 
-```json
-// Request
-{ "transaction_id": "txn_a8f3b2", "amount": 14500, "time_gap_minutes": 0.3 }
+Score a single transaction. Now supports `location` and `device` for richer fraud signals.
 
-// Response
+**Request fields:**
+
+| Field | Type | Required | Example |
+|-------|------|----------|---------|
+| `transaction_id` | string | No | `"txn_abc123"` |
+| `amount` | float | **Yes** | `14500` |
+| `time_gap_minutes` | float | No | `0.3` |
+| `location` | string | No | `"Delhi"`, `"International"`, `"Unknown"` |
+| `device` | string | No | `"mobile"`, `"desktop"`, `"new_device"`, `"pos"` |
+
+**Full example:**
+```json
 {
   "transaction_id": "txn_a8f3b2",
   "amount": 14500,
+  "time_gap_minutes": 0.3,
+  "location": "International",
+  "device": "new_device"
+}
+```
+
+**Response:**
+```json
+{
+  "transaction_id": "txn_a8f3b2",
+  "amount": 14500,
+  "location": "International",
+  "device": "new_device",
   "z_score": 2.71,
   "risk_score": 85,
+  "confidence": 0.88,
   "status": "HIGH_RISK",
   "alert_triggered": true,
-  "alert_reason": "high z-score (2.71); amount exceeds ₹10,000; rapid succession (0.3 min gap)",
+  "alert_reason": "high z-score (2.71); amount exceeds ₹10,000; rapid succession (0.3 min gap); international transaction flagged; new or unrecognized device",
   "recommendation": "Block transaction and notify compliance team immediately."
 }
 ```
 
 ### `POST /batch-predict`
-Score up to **100 transactions** in one request. Returns results + aggregate summary (high_risk_count, alert_rate_pct, avg_risk_score).
+
+Score up to **100 transactions** in one request. Returns results + aggregate summary (`high_risk_count`, `alert_rate_pct`, `avg_risk_score`).
 
 ### `GET /audit-logs?status=HIGH_RISK&limit=20`
+
 Recent scored transactions from PostgreSQL. Uses indexed columns for fast retrieval.
 
 ---
 
 ## Scoring Engine
 
-Three independent rules → 0–100 risk score:
+Five independent rules → 0–100 risk score:
 
 ```
-Rule 1 — Z-score     |z| > 3.0 → +50   |z| > 2.0 → +30   |z| > 1.5 → +15
-Rule 2 — Value        > ₹10k  → +25    > ₹5k    → +10
-Rule 3 — Velocity    gap < 1 min → +25  gap < 30% avg → +10
+Rule 1 — Z-score      |z| > 3.0 → +50   |z| > 2.0 → +30   |z| > 1.5 → +15
+Rule 2 — Value         > ₹10k  → +25    > ₹5k    → +10
+Rule 3 — Velocity     gap < 1 min → +25  gap < 30% avg → +10
+Rule 4 — Location     Unknown → +20     International → +15
+Rule 5 — Device       new_device → +15
 ```
 
 Alert fires when `risk_score ≥ 60` OR (`risk_score ≥ 30` AND 2+ rules fired).
+
+Confidence is calculated from the number of rules that fired — more signals = higher confidence.
 
 ---
 
@@ -147,4 +244,15 @@ pytest tests/ -v --cov=. --cov-report=term-missing
 
 ## Environment Variables
 
-Copy `.env.example` → `.env`. Key variables: `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `REDIS_URL`, `SMTP_*`, `ALERT_EMAIL_TO`, `SLACK_WEBHOOK_URL`.
+Copy `.env.example` → `.env`. Key variables:
+
+| Variable | Description |
+|----------|-------------|
+| `DB_HOST` | PostgreSQL host |
+| `DB_NAME` | Database name |
+| `DB_USER` | Database user |
+| `DB_PASSWORD` | Database password |
+| `REDIS_URL` | Redis connection URL |
+| `SMTP_*` | Email alert config |
+| `ALERT_EMAIL_TO` | Recipient for fraud alerts |
+| `SLACK_WEBHOOK_URL` | Slack incoming webhook URL |
