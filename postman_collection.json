@@ -1,0 +1,133 @@
+{
+  "info": {
+    "name": "Transaction Anomaly Notifier",
+    "description": "Collection for testing the Fraud Detection API. Import this file into Postman and run all requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1 — Health Check",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "https://transaction-anomaly-notifier.onrender.com/health",
+          "protocol": "https",
+          "host": ["transaction-anomaly-notifier", "onrender", "com"],
+          "path": ["health"]
+        },
+        "description": "Check if the API is running. Should return {status: ok}."
+      }
+    },
+    {
+      "name": "2 — Predict (HIGH_RISK example)",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "https://transaction-anomaly-notifier.onrender.com/predict",
+          "protocol": "https",
+          "host": ["transaction-anomaly-notifier", "onrender", "com"],
+          "path": ["predict"]
+        },
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"transaction_id\": \"txn_high_001\",\n  \"amount\": 14500,\n  \"time_gap_minutes\": 0.3,\n  \"location\": \"International\",\n  \"device\": \"new_device\"\n}"
+        },
+        "description": "Large amount + international location + new device + rapid succession. Expected: HIGH_RISK, alert_triggered: true"
+      }
+    },
+    {
+      "name": "3 — Predict (SUSPICIOUS example)",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "https://transaction-anomaly-notifier.onrender.com/predict",
+          "protocol": "https",
+          "host": ["transaction-anomaly-notifier", "onrender", "com"],
+          "path": ["predict"]
+        },
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"transaction_id\": \"txn_sus_001\",\n  \"amount\": 6000,\n  \"time_gap_minutes\": 5,\n  \"location\": \"Delhi\",\n  \"device\": \"mobile\"\n}"
+        },
+        "description": "Moderate amount above threshold. Expected: SUSPICIOUS"
+      }
+    },
+    {
+      "name": "4 — Predict (NORMAL example)",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "https://transaction-anomaly-notifier.onrender.com/predict",
+          "protocol": "https",
+          "host": ["transaction-anomaly-notifier", "onrender", "com"],
+          "path": ["predict"]
+        },
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"transaction_id\": \"txn_low_001\",\n  \"amount\": 450,\n  \"time_gap_minutes\": 120,\n  \"location\": \"Delhi\",\n  \"device\": \"mobile\"\n}"
+        },
+        "description": "Small amount, regular gap, known location. Expected: NORMAL"
+      }
+    },
+    {
+      "name": "5 — Batch Predict",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "https://transaction-anomaly-notifier.onrender.com/batch-predict",
+          "protocol": "https",
+          "host": ["transaction-anomaly-notifier", "onrender", "com"],
+          "path": ["batch-predict"]
+        },
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"transactions\": [\n    {\n      \"transaction_id\": \"t1\",\n      \"amount\": 200,\n      \"time_gap_minutes\": 30,\n      \"location\": \"Delhi\",\n      \"device\": \"mobile\"\n    },\n    {\n      \"transaction_id\": \"t2\",\n      \"amount\": 99000,\n      \"time_gap_minutes\": 0.1,\n      \"location\": \"International\",\n      \"device\": \"new_device\"\n    },\n    {\n      \"transaction_id\": \"t3\",\n      \"amount\": 5500,\n      \"time_gap_minutes\": 8,\n      \"location\": \"Mumbai\",\n      \"device\": \"desktop\"\n    }\n  ]\n}"
+        },
+        "description": "Score 3 transactions at once. Returns per-result + summary with alert_rate_pct."
+      }
+    },
+    {
+      "name": "6 — Audit Logs (all)",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "https://transaction-anomaly-notifier.onrender.com/audit-logs?limit=10",
+          "protocol": "https",
+          "host": ["transaction-anomaly-notifier", "onrender", "com"],
+          "path": ["audit-logs"],
+          "query": [{ "key": "limit", "value": "10" }]
+        },
+        "description": "Fetch the 10 most recent transactions from the PostgreSQL audit log."
+      }
+    },
+    {
+      "name": "7 — Audit Logs (HIGH_RISK only)",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "https://transaction-anomaly-notifier.onrender.com/audit-logs?status=HIGH_RISK&limit=20",
+          "protocol": "https",
+          "host": ["transaction-anomaly-notifier", "onrender", "com"],
+          "path": ["audit-logs"],
+          "query": [
+            { "key": "status", "value": "HIGH_RISK" },
+            { "key": "limit",  "value": "20" }
+          ]
+        },
+        "description": "Fetch only HIGH_RISK transactions from the audit log."
+      }
+    }
+  ]
+}
