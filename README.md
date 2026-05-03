@@ -1,3 +1,4 @@
+[README.md](https://github.com/user-attachments/files/27321328/README.md)
 # Transaction Anomaly Notifier
 
 > Real-time transaction fraud detection API with async alerting, batch scoring, PostgreSQL audit logging, and full CI/CD — built with Pine Labs' payments infrastructure in mind.
@@ -13,6 +14,19 @@
 | **API base** | https://transaction-anomaly-notifier.onrender.com |
 
 > ⚠️ Hosted on Render free tier — first request may take ~30 seconds to wake up. Subsequent requests are fast.
+
+---
+
+## Screenshots
+
+### Swagger UI — interactive docs
+![Swagger UI](swagger.png)
+
+### HIGH_RISK — 5 rules triggered, alert fired, confidence 0.99
+![HIGH_RISK response](high_risk.png)
+
+### NORMAL — clean transaction, approved instantly
+![NORMAL response](normal.png)
 
 ---
 
@@ -38,12 +52,12 @@ curl -X POST https://transaction-anomaly-notifier.onrender.com/predict \
   "amount": 14500,
   "location": "International",
   "device": "new_device",
-  "z_score": 2.98,
-  "risk_score": 85,
-  "confidence": 0.88,
+  "z_score": 2.61,
+  "risk_score": 100,
+  "confidence": 0.99,
   "status": "HIGH_RISK",
   "alert_triggered": true,
-  "alert_reason": "high z-score (2.98); amount exceeds ₹10,000; rapid succession (0.3 min gap); international transaction flagged; new or unrecognized device",
+  "alert_reason": "high z-score (2.61); amount exceeds ₹10,000; rapid succession (0.3 min gap); international transaction flagged; new or unrecognized device",
   "recommendation": "Block transaction and notify compliance team immediately."
 }
 ```
@@ -103,6 +117,9 @@ transaction-anomaly-notifier/
 ├── docker-compose.yml         ← API + Celery worker + Postgres + Redis
 ├── .env.example               ← Environment variable template
 ├── postman_collection.json    ← 7 ready-to-run API requests
+├── high_risk.png              ← Screenshot: HIGH_RISK prediction response
+├── normal.png                 ← Screenshot: NORMAL prediction response
+├── swagger.png                ← Screenshot: Swagger UI
 ├── tests/
 │   └── test_api.py            ← 25 pytest tests — unit + integration + resilience
 └── .github/
@@ -140,7 +157,7 @@ Open **http://localhost:8000/docs** for Swagger UI.
 
 ### `POST /predict`
 
-Score a single transaction. Now supports `location` and `device` for richer fraud signals.
+Score a single transaction. Supports `location` and `device` for richer fraud signals.
 
 **Request fields:**
 
@@ -152,33 +169,16 @@ Score a single transaction. Now supports `location` and `device` for richer frau
 | `location` | string | No | `"Delhi"`, `"International"`, `"Unknown"` |
 | `device` | string | No | `"mobile"`, `"desktop"`, `"new_device"`, `"pos"` |
 
-**Full example:**
-```json
-{
-  "transaction_id": "txn_a8f3b2",
-  "amount": 14500,
-  "time_gap_minutes": 0.3,
-  "location": "International",
-  "device": "new_device"
-}
-```
+**Response fields:**
 
-**Response:**
-```json
-{
-  "transaction_id": "txn_a8f3b2",
-  "amount": 14500,
-  "location": "International",
-  "device": "new_device",
-  "z_score": 2.71,
-  "risk_score": 85,
-  "confidence": 0.88,
-  "status": "HIGH_RISK",
-  "alert_triggered": true,
-  "alert_reason": "high z-score (2.71); amount exceeds ₹10,000; rapid succession (0.3 min gap); international transaction flagged; new or unrecognized device",
-  "recommendation": "Block transaction and notify compliance team immediately."
-}
-```
+| Field | Type | Example |
+|-------|------|---------|
+| `risk_score` | int 0–100 | `100` |
+| `confidence` | float 0–1 | `0.99` |
+| `status` | string | `HIGH_RISK` / `SUSPICIOUS` / `NORMAL` |
+| `alert_triggered` | bool | `true` |
+| `alert_reason` | string | lists every rule that fired |
+| `recommendation` | string | action to take |
 
 ### `POST /batch-predict`
 
