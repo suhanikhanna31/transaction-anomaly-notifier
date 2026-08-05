@@ -1,4 +1,4 @@
-[README.md](https://github.com/user-attachments/files/27321328/README.md)
+
 # Transaction Anomaly Notifier
 
 > Real-time transaction fraud detection API with async alerting, batch scoring, PostgreSQL audit logging, and full CI/CD — built with Pine Labs' payments infrastructure in mind.
