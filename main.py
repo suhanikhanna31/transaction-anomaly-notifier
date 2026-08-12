@@ -308,7 +308,7 @@ def predict(txn: TransactionInput):
 # ─── Batch predict ────────────────────────────────────────────────────────────
 
 class BatchInput(BaseModel):
-    transactions: List[TransactionInput] = Field(..., min_length=1, max_length=100)
+    transactions: List[TransactionInput] = Field(..., max_length=100)
 
 
 @app.post("/batch-predict")
